@@ -225,7 +225,7 @@ In the self-hosted org, went to **Admin Console → Settings → Organization in
    - The token inherits its creator's privileges. In production I'd create it from a dedicated **read-only admin** service account.
 
 ### 9.4 Directory Connector
-1. Installed the Directory Connector desktop app.
+1. Installed the [Directory Connector desktop app](https://bitwarden.com/en-gb/help/directory-sync-desktop/).
 2. Set the **self-hosted server URL** to `https://nick-vault.duckdns.org` before logging in.
 3. Logged in with the **organization API key**.
 4. Directory settings: type **Okta**, plus the Okta org URL and API token.
