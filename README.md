@@ -24,14 +24,12 @@ This repository documents how I deployed a self-hosted Bitwarden server on AWS, 
 7. [SMTP configuration](#7-smtp-configuration)
 8. [Account creation and email proof](#8-account-creation-and-email-proof)
 9. [Bonus: Directory Connector with Okta](#9-bonus-directory-connector-with-okta)
-10. [Security hardening](#10-security-hardening)
-11. [Issues encountered and resolutions](#11-issues-encountered-and-resolutions)
-12. [Production recommendations](#12-production-recommendations)
+10. [Production recommendations](#12-production-recommendations)
 
 
 ## 1. Architecture
 
-![Bitwarden self-hosted architecture](bitwarden-architecture.png)
+![Bitwarden self-hosted architecture](images/bitwarden-architecture-terraform.png)
 
 
 
@@ -219,99 +217,126 @@ Then I applied the change:
 
 The sender domain proves the mail originated from the self-hosted server.
 
-![Bitwarden Welcome email](bitwarden-welcome-email.png)
+![Bitwarden Welcome email](images/bitwarden-welcome-email.png)
 
 ---
 
 ## 9. Bonus: Directory Connector with Okta
-
-**Purpose:** enterprises manage identities centrally. The Directory Connector keeps Bitwarden organization membership in sync with the IdP:
+ 
+**Why it matters:** enterprises manage identities centrally. The Directory Connector keeps Bitwarden organization membership in step with the identity provider:
 - new hires are invited automatically
-- IdP groups map to Bitwarden groups and collections
+- IdP groups become Bitwarden groups, which map to collections
 - disabled or removed users lose access on the next sync
-
+**End-to-end flow**
+ 
+```
+Bitwarden cloud (Free org → Enterprise trial) ──license file──► self-hosted Enterprise org
+Okta users + groups ──Okta API──► Directory Connector ──org API key / HTTPS──► self-hosted org
+                                                    └──► invitation emails via SMTP (Mailtrap)
+```
+ 
 ### 9.1 Licensing
-1. Created a Bitwarden cloud account and a **Free organization**, and shared the account email and org name with Bitwarden to be upgraded to an **Enterprise trial**.
-2. In the cloud org, went to **Admin Console → Billing → Subscription → Download license** and entered my self-hosted **Installation ID**.
-3. On the self-hosted vault, went to **New organization** and **uploaded the license file**. This creates a self-hosted org with Enterprise features.
-
+ 
+Directory Connector is an organization feature. On self-hosted Bitwarden, organization plans are unlocked by uploading a **license file** that is bound to one installation.
+ 
+1. Created a Bitwarden cloud account and a **Free organization** (in the same region as my installation ID). I sent the account email and org name to Bitwarden, who upgraded it to an **Enterprise trial**.
+2. In the cloud org: **Admin Console → Billing → Subscription → Download license**, entering the self-hosted **Installation ID**.
+3. On the self-hosted vault: **New organization → upload license file**. This created the self-hosted org with Enterprise features.
+**Lesson learned:** every request to bitwarden.com/host issues a **new** installation ID. The license must be generated with the exact ID the server was installed with. I read it from the server rather than from email:
+ 
+```bash
+grep installation__id /opt/bitwarden/bwdata/env/global.override.env
+```
+ 
 ### 9.2 Organization API key
-In the self-hosted org, went to **Admin Console → Settings → Organization info → View API key** and copied the `client_id` and `client_secret` for the Directory Connector.
+ 
+In the self-hosted org: **Admin Console → Settings → Organization info → View API key**. I copied the `client_id` (`organization.<guid>`) and `client_secret`. The Directory Connector authenticates to the self-hosted server with these, so no user's master password is involved.
+ 
+### 9.3 Okta (identity provider)
+ 
+1. **Org:** signed up for the **Okta Integrator Free Plan**. It requires a business email domain, and free mailbox providers are rejected.
+   - Admin console: `https://integrator-XXXXXXX-admin.okta.com`
+   - **API base URL used by the connector: `https://integrator-XXXXXXX.okta.com`** (no `-admin`)
+2. **Groups** (**Directory → Groups**): `Engineering`, `Security`, `Finance`.
+3. **Users** (**Directory → People**), all *Active*:
+   | User | Email | Groups |
+   |---|---|---|
+   | Alice Johnson | `<me>+alice@gmail.com` | Engineering |
+   | Ben Carter | `<me>+ben@gmail.com` | Engineering |
+   | Chloe Davies | `<me>+chloe@gmail.com` | Security |
+   | Daniel Evans | `<me>+daniel@gmail.com` | Engineering, Security |
+   | Emma Wright | `<me>+emma@gmail.com` | Finance |
+   - Test identities use plus-addressing, so any mail sent to them lands in my own inbox and no real third party is contacted.
+   - I chose **"I will set password"** and disabled "change password on first login", so Okta sent no activation emails.
+4. **API token:** **Security → API → Tokens → Create token**, copied once.
+   - The token inherits its creator's privileges. In production I'd create it from a dedicated **read-only admin** service account, and rotate it.
 
-### 9.3 Okta
-1. Created an Okta Integrator (free developer) org.
-2. Added test users under **Directory → People** and groups (e.g. `Engineering`, `Security`) under **Directory → Groups**, then assigned members.
-3. Created an API token under **Security → API → Tokens**.
-   - The token inherits its creator's privileges. In production I'd create it from a dedicated **read-only admin** service account.
 
-### 9.4 Directory Connector
-1. Installed the [Directory Connector desktop app](https://bitwarden.com/en-gb/help/directory-sync-desktop/).
-2. Set the **self-hosted server URL** to `https://nick-vault.duckdns.org` before logging in.
-3. Logged in with the **organization API key**.
-4. Directory settings: type **Okta**, plus the Okta org URL and API token.
-5. Sync settings: **Users** and **Groups** enabled, with an optional group filter (e.g. `include:Engineering,Security`).
-6. Ran **Test sync** to preview the results, then **Sync now**.
+### 9.4 Directory Connector: desktop app (macOS)
+ 
+1. Installed the [Directory Connector desktop app](https://bitwarden.com/en-gb/help/directory-sync-desktop/) (v2026.9.0).
+2. **Before logging in:** opened **Settings** on the login screen and set **Server URL** to `https://nick-vault.duckdns.org`, then saved.
+3. Logged in with the **organization API key** (`client_id` / `client_secret`).
+4. **Settings → Directory:**
+   - Type: **Okta**
+   - Organization URL: `https://integrator-XXXXXXX.okta.com`
+   - Token: Okta API token, stored in the macOS Keychain (`data.json` shows `[STORED SECURELY]`)
+5. **Settings → Sync:**
+   | Option | Value | Why |
+   |---|---|---|
+   | Sync users | ✅ | **Off by default.** With it off, *Test Now* returns empty lists and shows no error |
+   | Sync groups | ✅ | **Off by default**, as above |
+   | Automatically send email invitations | ✅ | Invites go out through the server's SMTP |
+   | User filter | `exclude:<okta admin account>` | Keep my Okta admin identity out of the vault org |
+   | Group filter | `exclude:Everyone,Okta Administrators` | Skip Okta's built-in groups |
+   | Remove disabled users | off | Not needed for the test |
+   | Overwrite existing users | off | Avoid removing manually invited members |
+6. **More → Clear Sync Cache**, then **Dashboard → Test Now**. The preview matched expectations:
+   | Group | Members |
+   |---|---|
+   | Engineering | alice, ben, daniel |
+   | Security | chloe, daniel |
+   | Finance | emma |
+   Users: alice, ben, chloe, daniel, emma (5). There were no disabled or deleted users. The built-in groups and the admin account were excluded by the filters.
+7. **Dashboard → Sync Now.**
+📸 Directory Connector settings (token masked):
 
-### 9.5 Result
-Okta users appear in **Admin Console → Members** with status **Invited**, and their groups appear under **Groups**. Invitation emails are delivered through the configured SMTP and are visible in Mailtrap.
+![Directory Connector settings](images/settings-page-directory-connector.png)
 
-📸 `screenshots/02-directory-connector-config.png` (token redacted)
-📸 `screenshots/03-org-members.png`
-📸 `screenshots/04-org-groups.png` (optional)
+📸 Test Now results:
 
----
+![Directory Connector users/groups test](images/synced-user-on-directory-connector.png)
 
-## 10. Security hardening
 
-**Applied**
-- SSH (22) restricted to a single `/32` source; HTTP/HTTPS are the only public ports.
-- Dedicated, unprivileged `bitwarden` service account with no sudo and a locked password.
-- `/opt/bitwarden` owned by `bitwarden` with mode `700`; installed as non-root, per Bitwarden guidance.
-- Publicly trusted TLS via Let's Encrypt with automatic renewal through the Bitwarden stack.
-- IMDSv2 used for instance metadata.
+### 9.6 Result
+ 
+- **Admin Console → Members:** the five Okta users are present with status **Invited**.
+- **Admin Console → Groups:** `Engineering`, `Security` and `Finance`, with members matching Okta.
+- **Mailtrap:** one organization invitation per user, sent from `no-reply@nick-vault.duckdns.org` through the configured SMTP. This also re-proves task 2.
+📸 Organization members:
 
-**Applied once test accounts were created**
-- Open registration disabled:
-  ```ini
-  globalSettings__disableUserRegistration=true
-  ```
-  followed by `./bitwarden.sh restart`. Users now join through invitations or directory sync only.
+![Organization members](images/okta-people-lists.png)
 
----
+📸 Organization groups:
 
-## 11. Issues encountered and resolutions
+![Organization groups](images/okta-group-lists.png)
+ 
 
-| Issue | Cause | Resolution |
-|---|---|---|
-| `curl` to port 80 failed with "Could not connect" | Nothing was listening; the security group was correct (a fast refusal, not a timeout) | Started a temporary listener (`python3 -m http.server 80`) to test, then stopped it before installing |
-| HTTPS "can't be reached" / HTTP "Not secure" before install | No certificate or TLS listener existed yet | Expected; resolved by the installer's Let's Encrypt step |
-| `ls: Permission denied` and `bitwarden.sh: Permission denied` as `bitwarden` | `su bitwarden` kept the working directory at `/home/ec2-user` | Used `sudo -iu bitwarden` and `cd /opt/bitwarden` |
-| `bitwarden is not in the sudoers file` | By design: the service account has no sudo | No change; Docker access comes via the `docker` group |
-| `groupadd docker` succeeded silently | Docker wasn't installed yet | Installed Docker and the Compose plugin before running the installer |
-| Compose missing on Amazon Linux 2023 | The Compose v2 plugin isn't in AL2023 repos | Installed the plugin binary into `/usr/local/lib/docker/cli-plugins` |
-| Bitwarden emails not appearing in Gmail | The Mailtrap sandbox captures mail rather than delivering it | Checked the Mailtrap sandbox inbox |
-
----
-
-## 12. Production recommendations
-
-This deployment was built manually to follow Bitwarden's documented process. For production I would:
-
-- **Codify the infrastructure in Terraform:**
-  - VPC with a private subnet for the instance, fronted by an ALB or NLB
-  - TLS via ACM or Let's Encrypt
-  - no public SSH; administer via **SSM Session Manager** instead
-  - security groups, Elastic IP/DNS (Route 53), encrypted EBS volumes, and IAM instance profiles
-  - bootstrap with cloud-init (Docker, Compose plugin, `bitwarden` user, `/opt/bitwarden`)
-- **Manage secrets** (SMTP credentials, installation key) in AWS Secrets Manager or SSM Parameter Store, rendered into `global.override.env` at deploy time rather than stored in plain text.
-- **Use production SMTP** (e.g. Amazon SES, SendGrid or Mailgun) with SPF, DKIM and DMARC configured for the sending domain.
+## 10. Production recommendations
+ 
+The assessment deployment was built by hand to follow Bitwarden's documented process. The Terraform in this repo is the first step towards production. Beyond it, I would:
+ 
+- **Bootstrap the instance from code:** extend `user_data` (cloud-init) to install Docker and the Compose plugin, create the `bitwarden` user and `/opt/bitwarden`, and install `bwdc`. Then the instance is ready right after `terraform apply`.
+- **Manage secrets** (SMTP credentials, installation key, org API key, Okta token) in AWS Secrets Manager or SSM Parameter Store. Render them into `global.override.env` and `bwdc` at deploy time instead of storing them in plain text.
+- **Schedule directory sync:** run `bwdc sync` from a systemd timer (or cron) under a dedicated user, alerting on failure. Enable **Remove disabled users** so offboarding in Okta revokes vault access.
+- **Use production SMTP** (e.g. Amazon SES) with SPF, DKIM and DMARC for the sending domain.
 - **Back up and recover:**
-  - nightly backups of `bwdata` and the MSSQL database (Bitwarden's built-in backups in `bwdata/mssql/backups`)
+  - nightly `bwdata` and MSSQL backups (`bwdata/mssql/backups`)
   - EBS snapshots via AWS Backup
-  - off-instance, encrypted copies
+  - encrypted off-instance copies
   - periodic restore tests
-- **Consider an external database** (managed MSSQL / RDS) for larger deployments, or the Bitwarden Lite single-container option for small ones.
-- **Monitor and log:** CloudWatch agent for host metrics and container logs, alarms on disk, memory and certificate expiry, and uptime checks on `/alive`.
-- **Patch and update:** OS patching via SSM Patch Manager, plus a regular Bitwarden update cadence (`./bitwarden.sh updateself && ./bitwarden.sh update`) with a pre-update backup.
-- **Strengthen identity:** SSO (SAML/OIDC with Okta) alongside Directory Connector, with trusted devices or Key Connector depending on customer requirements, and enforced org policies (2FA, master password requirements).
+- **Plan for availability:** the current design is single-AZ. For higher availability, use an external database (managed MSSQL) with multi-AZ subnets, or consider Bitwarden Lite for small deployments.
+- **Monitor and log:** CloudWatch agent for host metrics and container logs; alarms on disk, memory, certificate expiry and NLB target health; uptime checks on `/alive`.
+- **Patch and update:** OS patching via SSM Patch Manager, plus a regular Bitwarden update cadence (`./bitwarden.sh updateself && ./bitwarden.sh update`) with a backup taken first.
+- **Strengthen identity:** SSO (SAML/OIDC with Okta) alongside Directory Connector, with trusted devices or Key Connector depending on customer requirements, plus enforced org policies such as 2FA and master password requirements.
 - **Choose TLS to fit the environment:** a private CA for internal or air-gapped deployments, distributing the CA to clients such as the Directory Connector (`NODE_EXTRA_CA_CERTS`).

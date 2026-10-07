@@ -74,11 +74,7 @@ resource "aws_instance" "app" {
     delete_on_termination = true
   }
 
-  user_data = <<-EOF
-    #!/bin/bash
-    dnf install -y amazon-ssm-agent
-    systemctl enable --now amazon-ssm-agent
-  EOF
+  user_data = file("${path.module}/scripts/bitwarden-bootstrap.sh")
 
   tags = {
     Name = "${local.resource_prefix}-app"
