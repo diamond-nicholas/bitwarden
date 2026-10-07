@@ -312,6 +312,14 @@ In the self-hosted org: **Admin Console → Settings → Organization info → V
 
 ![Directory Connector users/groups test](images/synced-user-on-directory-connector.png)
 
+![Organization group list in the Admin Console](images/org-group-synced.png)
+
+![Organization member list in the Admin Console](images/org-member-synced.png)
+
+📸 Invitation emails in Mailtrap after sync:
+
+![Invitation emails after sync](images/email-invite-teams.png)
+
 
 ### 9.6 Result
  
