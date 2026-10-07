@@ -34,6 +34,7 @@ This repository documents how I deployed a self-hosted Bitwarden server on AWS, 
 ![Bitwarden self-hosted architecture](bitwarden-architecture.png)
 
 
+
 ## 2. Infrastructure (AWS)
 
 1. **EC2 instance:** launched a `t3.medium` (2 vCPU / 4 GB RAM) with Amazon Linux 2023 (x86_64) and a 30 GB gp3 root volume.
@@ -198,7 +199,7 @@ Then I applied the change:
 
 The sender domain proves the mail originated from the self-hosted server.
 
-📸 `screenshots/01-welcome-email.png`
+![Bitwarden Welcome email](bitwarden-welcome-email.png)
 
 ---
 
