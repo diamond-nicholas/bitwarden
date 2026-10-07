@@ -18,13 +18,13 @@ This repository documents how I deployed a self-hosted Bitwarden server on AWS, 
 1. [Architecture](#1-architecture)
 2. [Infrastructure (AWS)](#2-infrastructure-aws)
 3. [DNS and network validation](#3-dns-and-network-validation)
-4. [Docker and Docker Compose](#4-docker-and-docker-compose-amazon-linux-2023)
+4. [Docker and Docker Compose](#4-docker-and-docker-compose)
 5. [Bitwarden service account](#5-bitwarden-service-account-and-directory)
 6. [Bitwarden installation](#6-bitwarden-installation)
 7. [SMTP configuration](#7-smtp-configuration)
 8. [Account creation and email proof](#8-account-creation-and-email-proof)
 9. [Bonus: Directory Connector with Okta](#9-bonus-directory-connector-with-okta)
-10. [Production recommendations](#12-production-recommendations)
+10. [Production recommendations](#10-production-recommendations)
 
 
 ## 1. Architecture
