@@ -29,7 +29,7 @@ This repository documents how I deployed a self-hosted Bitwarden server on AWS, 
 
 ## 1. Architecture
 
-![Bitwarden self-hosted architecture](images/bitwarden-architecture-terraform.png)
+![Bitwarden self-hosted architecture](images/bitwarden-aws-architecture.png)
 
 
 
@@ -55,8 +55,9 @@ This repository documents how I deployed a self-hosted Bitwarden server on AWS, 
    | `bitwarden-vpc-endpoints-sg` | 443 | TCP | `bitwarden-ec2-sg` | Session Manager VPC interface endpoints |
 
 4. **TLS and DNS:**
-   - TLS is terminated by the public NLB, and the site is served through a Route 53 alias to a stable public DNS record.
-   - ACM certificate management can be used for a public certificate; if desired, Let's Encrypt can also be used on the instance itself.
+   - The live certificate is installed on the Bitwarden instance (nginx / Let's Encrypt), not on the NLB.
+   - The NLB simply forwards 80/443 to the private instance and keeps a stable public endpoint through the Route 53 alias.
+   - The Terraform in this repo shows the hardened pattern; the live vault described elsewhere was built manually in the default VPC.
 5. **Static public endpoint:**
    - An Elastic IP is associated with the public-facing NLB so the entry point remains static and does not change after stop/start events.
    - This keeps a fixed public DNS target while the EC2 instance remains private.
@@ -108,7 +109,7 @@ This repository documents how I deployed a self-hosted Bitwarden server on AWS, 
 
 ```bash
 sudo dnf update -y
-sudo dnf install -y docker
+sudo dnf install -y docker docker-compose-plugin
 sudo systemctl enable --now docker
 
 sudo mkdir -p /usr/local/lib/docker/cli-plugins
@@ -259,6 +260,7 @@ In the self-hosted org: **Admin Console → Settings → Organization info → V
    - **API base URL used by the connector: `https://integrator-XXXXXXX.okta.com`** (no `-admin`)
 2. **Groups** (**Directory → Groups**): `Engineering`, `Security`, `Finance`.
 3. **Users** (**Directory → People**), all *Active*:
+
    | User | Email | Groups |
    |---|---|---|
    | Alice Johnson | `<me>+alice@gmail.com` | Engineering |
@@ -266,6 +268,7 @@ In the self-hosted org: **Admin Console → Settings → Organization info → V
    | Chloe Davies | `<me>+chloe@gmail.com` | Security |
    | Daniel Evans | `<me>+daniel@gmail.com` | Engineering, Security |
    | Emma Wright | `<me>+emma@gmail.com` | Finance |
+
    - Test identities use plus-addressing, so any mail sent to them lands in my own inbox and no real third party is contacted.
    - I chose **"I will set password"** and disabled "change password on first login", so Okta sent no activation emails.
 4. **API token:** **Security → API → Tokens → Create token**, copied once.
@@ -282,18 +285,23 @@ In the self-hosted org: **Admin Console → Settings → Organization info → V
    - Organization URL: `https://integrator-XXXXXXX.okta.com`
    - Token: Okta API token, stored in the macOS Keychain (`data.json` shows `[STORED SECURELY]`)
 5. **Settings → Sync:**
+
    | Option | Value | Why |
    |---|---|---|
-   | Sync users | toggled on| returns expected users |
+   | Sync users | toggled on | returns expected users |
    | Sync groups | toggled on | returns expected groups |
    | Automatically send email invitations | toggled on | Invites go out through the server's SMTP |
-   
+   | User filter | `exclude:<okta admin account>` | Keep my Okta admin identity out of the vault org |
+   | Group filter | `exclude:Everyone,Okta Administrators` | Skip Okta's built-in groups |
+
 6. **More → Clear Sync Cache**, then **Dashboard → Test Now**. The preview matched expectations:
+
    | Group | Members |
    |---|---|
    | Engineering | alice, ben, daniel |
    | Security | chloe, daniel |
    | Finance | emma |
+
    Users: alice, ben, chloe, daniel, emma (5). There were no disabled or deleted users. The built-in groups and the admin account were excluded by the filters.
 7. **Dashboard → Sync Now.**
 📸 Directory Connector settings (token masked):
