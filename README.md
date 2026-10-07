@@ -182,7 +182,7 @@ The `bitwarden` user is intentionally **not** in sudoers (least privilege).
 
 ## 7. SMTP configuration
 
-I used the **Mailtrap Email Sandbox**. It accepts mail over authenticated SMTP and captures it in a web inbox instead of delivering it to real recipients, which is ideal for testing.
+I used the **Mailtrap Email Sandbox**. [docs](https://bitwarden.com/en-gb/help/install-on-premise-linux/#post-install-configuration) It accepts mail over authenticated SMTP and captures it in a web inbox instead of delivering it to real recipients, which is ideal for testing.
 
 Mailtrap supports **STARTTLS on all ports**, where the connection starts in plain text and is upgraded to TLS. In Bitwarden, `smtp__ssl=true` means *implicit* TLS, so the correct setting is **`ssl=false` with port 587**. The session is still encrypted via STARTTLS.
 
@@ -277,20 +277,17 @@ In the self-hosted org: **Admin Console → Settings → Organization info → V
 1. Installed the [Directory Connector desktop app](https://bitwarden.com/en-gb/help/directory-sync-desktop/) (v2026.9.0).
 2. **Before logging in:** opened **Settings** on the login screen and set **Server URL** to `https://nick-vault.duckdns.org`, then saved.
 3. Logged in with the **organization API key** (`client_id` / `client_secret`).
-4. **Settings → Directory:**
+4. **Settings → Directory:** [docs](https://bitwarden.com/en-gb/help/okta-directory/)
    - Type: **Okta**
    - Organization URL: `https://integrator-XXXXXXX.okta.com`
    - Token: Okta API token, stored in the macOS Keychain (`data.json` shows `[STORED SECURELY]`)
 5. **Settings → Sync:**
    | Option | Value | Why |
    |---|---|---|
-   | Sync users | ✅ | **Off by default.** With it off, *Test Now* returns empty lists and shows no error |
-   | Sync groups | ✅ | **Off by default**, as above |
-   | Automatically send email invitations | ✅ | Invites go out through the server's SMTP |
-   | User filter | `exclude:<okta admin account>` | Keep my Okta admin identity out of the vault org |
-   | Group filter | `exclude:Everyone,Okta Administrators` | Skip Okta's built-in groups |
-   | Remove disabled users | off | Not needed for the test |
-   | Overwrite existing users | off | Avoid removing manually invited members |
+   | Sync users | toggled on| returns expected users |
+   | Sync groups | toggled on | returns expected groups |
+   | Automatically send email invitations | toggled on | Invites go out through the server's SMTP |
+   
 6. **More → Clear Sync Cache**, then **Dashboard → Test Now**. The preview matched expectations:
    | Group | Members |
    |---|---|
