@@ -1,24 +1,3 @@
-# bitwarden
-
-This shows exactly what i have done to get this setup
-
-Steps
-1. Created a t3.medium ec2 instance in aws 
-2. SG inbound with port 22 for my ip, port 80 and 443 from anywhere
-3. Created an elastic ip and allocated it to the instance so we have a static public ip that doesnt change
-4. created a free sub-domain in https://www.duckdns.org/domains and called it http://nick-vault.duckdns.org/
-5. Pointed the ip in the subdomain to the instance
-6. tested and ensured it resolved to the elastic ip addr
-7. Went through the documentation to install docker and compose and also install and run the bitwarden script https://bitwarden.com/en-gb/help/install-on-premise-linux/#install-docker-and-docker-compose
-8. Within the installation few interactive questions were asked
-9. I used let's encrypt and when i was asked for installation id and key
-10. I was able to retrieve the installation id and key from here https://bitwarden.com/host/ by passing the email i used to register
-11. To setup smtp i created a free account with https://mailtrap.io/home
-12. In the instance there is a bitwarden shell script and an env i need to pass details of the smtp server so it runs well
-
-
-
-
 # Bitwarden Self-Hosted — Technical Assessment
 
 This repository documents how I deployed a self-hosted Bitwarden server on AWS, configured SMTP, and (bonus) synced users and groups from Okta using the Bitwarden Directory Connector.
@@ -75,7 +54,7 @@ This repository documents how I deployed a self-hosted Bitwarden server on AWS, 
 ## 3. DNS and network validation
 
 1. Created a free subdomain at [DuckDNS](https://www.duckdns.org): **`nick-vault.duckdns.org`**.
-2. Pointed the subdomain's A record to the Elastic IP. No AAAA (IPv6) record is set; a stray AAAA record can cause Let's Encrypt validation to fail.
+2. Pointed the subdomain's A record to the Elastic IP.
 3. **Validated resolution** from both inside the instance and my laptop:
 
    ```bash
@@ -104,9 +83,9 @@ This repository documents how I deployed a self-hosted Bitwarden server on AWS, 
 
 ---
 
-## 4. Docker and Docker Compose (Amazon Linux 2023)
+## 4. Docker and Docker Compose 
 
-Bitwarden's guide links to Docker's official install pages, which don't cover Amazon Linux. On AL2023, Docker comes from `dnf`, but **the Compose v2 plugin is not packaged**, and `bitwarden.sh` requires `docker compose`. So I installed the plugin manually:
+[Bitwarden's docs](https://bitwarden.com/en-gb/help/install-on-premise-linux/#install-docker-and-docker-compose) was used as a guide to complete installation.
 
 ```bash
 sudo dnf update -y
@@ -126,7 +105,7 @@ docker compose version
 
 ## 5. Bitwarden service account and directory
 
-Following Bitwarden's guidance, the stack runs under a dedicated, unprivileged service account rather than `root` or `ec2-user`:
+Following [Bitwarden's guidance](https://bitwarden.com/en-gb/help/install-on-premise-linux/#install-docker-and-docker-compose), the stack runs under a dedicated, unprivileged service account rather than `root` or `ec2-user`:
 
 ```bash
 sudo adduser bitwarden
