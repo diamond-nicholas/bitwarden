@@ -49,35 +49,11 @@ This repository documents how I deployed a self-hosted Bitwarden server on AWS, 
 11. [Issues encountered and resolutions](#11-issues-encountered-and-resolutions)
 12. [Production recommendations](#12-production-recommendations)
 
----
 
 ## 1. Architecture
 
-```
-                    ┌──────────────────────────┐
-  Users / Clients ──►  nick-vault.duckdns.org  │  DuckDNS A record → Elastic IP
-                    └────────────┬─────────────┘
-                                 │ 80 (ACME + redirect) / 443 (HTTPS)
-                    ┌────────────▼─────────────────────────────────┐
-                    │ AWS EC2 t3.medium — Amazon Linux 2023        │
-                    │ Security Group: 22 (my IP), 80, 443          │
-                    │                                              │
-                    │  /opt/bitwarden  (owner: bitwarden, 700)     │
-                    │  └─ Docker Compose stack                     │
-                    │     nginx · web · api · identity · admin ·   │
-                    │     sso · events · icons · notifications ·   │
-                    │     attachments · mssql                      │
-                    └────────────┬───────────────────┬─────────────┘
-                                 │ SMTP 587/STARTTLS │ HTTPS (license, push)
-                    ┌────────────▼──────┐   ┌────────▼───────────────┐
-                    │ Mailtrap Sandbox  │   │ Bitwarden cloud        │
-                    └───────────────────┘   │ (installation ID/key)  │
-                                            └────────────────────────┘
+![Bitwarden self-hosted architecture](bitwarden-architecture.png)
 
-  Okta (IdP) ──► Directory Connector (admin laptop) ──► Self-hosted org API (HTTPS)
-```
-
----
 
 ## 2. Infrastructure (AWS)
 
