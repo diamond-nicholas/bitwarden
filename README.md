@@ -40,15 +40,35 @@ This repository documents how I deployed a self-hosted Bitwarden server on AWS, 
 1. **EC2 instance:** launched a `t3.medium` (2 vCPU / 4 GB RAM) with Amazon Linux 2023 (x86_64) and a 30 GB gp3 root volume.
    - Bitwarden's minimum is 2 GB RAM; 4 GB gives headroom for the bundled MSSQL container.
    - I chose x86_64 over Graviton to avoid container-architecture issues.
-2. **Security group (`bitwarden-sg`):**
+   - The instance is placed in a private subnet and is not directly exposed to the internet.
+2. **Networking and public entry:**
+   - VPC with one private subnet for the EC2 instance and one public subnet for the internet-facing load balancer and NAT gateway.
+   - Public internet access is limited to the NLB on ports 80 and 443.
+   - The EC2 is reachable only via the NLB and AWS Systems Manager Session Manager; no public SSH is exposed.
+   - Route tables are configured so the private subnet egresses through the NAT gateway, while the public subnet routes to the internet gateway.
+3. **Security groups:**
 
-   | Port | Protocol | Source | Purpose |
-   |---|---|---|---|
-   | 22 | TCP | My public IP (`/32`) | SSH administration only |
-   | 80 | TCP | `0.0.0.0/0` | Let's Encrypt HTTP-01 challenge and HTTP→HTTPS redirect |
-   | 443 | TCP | `0.0.0.0/0` | Bitwarden web vault, API and clients |
+   | Security group | Port | Protocol | Source | Purpose |
+   |---|---|---|---|---|
+   | `bitwarden-nlb-sg` | 80 | TCP | `0.0.0.0/0` | Internet-facing HTTP entry |
+   | `bitwarden-nlb-sg` | 443 | TCP | `0.0.0.0/0` | Internet-facing HTTPS entry |
+   | `bitwarden-ec2-sg` | 80 | TCP | `bitwarden-nlb-sg` | Allow HTTP from the load balancer |
+   | `bitwarden-ec2-sg` | 443 | TCP | `bitwarden-nlb-sg` | Allow HTTPS from the load balancer |
+   | `bitwarden-vpc-endpoints-sg` | 443 | TCP | `bitwarden-ec2-sg` | Session Manager VPC interface endpoints |
 
-3. **Elastic IP:** allocated one and associated it with the instance, so the public IP survives stop/start and the DNS record stays valid.
+4. **TLS and DNS:**
+   - TLS is terminated by the public NLB, and the site is served through a Route 53 alias to a stable public DNS record.
+   - ACM certificate management can be used for a public certificate; if desired, Let's Encrypt can also be used on the instance itself.
+5. **Static public endpoint:**
+   - An Elastic IP is associated with the public-facing NLB so the entry point remains static and does not change after stop/start events.
+   - This keeps a fixed public DNS target while the EC2 instance remains private.
+6. **Admin access model:**
+   - SSH is not exposed publicly.
+   - Administration is handled with AWS Systems Manager Session Manager, which avoids opening port 22 to the internet.
+   - The EC2 has an IAM instance profile with the AmazonSSMManagedInstanceCore policy.
+7. **Storage and security hardening:**
+   - The root EBS volume is encrypted with gp3 storage.
+   - IAM instance profiles and security groups are used to keep the environment least-privilege and auditable.
 
 ---
 

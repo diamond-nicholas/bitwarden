@@ -1,0 +1,32 @@
+# Terraform state and local artifacts
+.terraform/
+.terraform.lock.hcl
+*.tfstate
+*.tfstate.*
+crash.log
+crash.*.log
+
+# Terraform override files
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
+# Local environment / secrets
+.env
+.env.*
+*.pem
+*.key
+*.crt
+*.cer
+*.pfx
+
+# OS/editor artifacts
+.DS_Store
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Logs
+*.log
